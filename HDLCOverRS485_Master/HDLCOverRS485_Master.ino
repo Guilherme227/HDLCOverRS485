@@ -24,7 +24,9 @@ void setup() {
 void loop() {
   //esp32Serial1.print("Olá, ESP32-1!"); // Envio de dados do Mestre ao Escravo 1
   char dataToSend[] = "Olá, ESP32!";
-  Serial.println(dataToSend);
+  Serial.print(">"); // Caracter definindo o início da mensagem
+  Serial.print(dataToSend);
+  Serial.print("<"); // Caracter definindo o final da mensagem
 
   /*while (esp32Serial1.available()) {
     char receivedChar = esp32Serial1.read(); // Recebe os dados do Escravo 1
