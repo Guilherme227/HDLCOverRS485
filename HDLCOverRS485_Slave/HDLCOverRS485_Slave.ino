@@ -16,8 +16,18 @@ void loop() {
   //delay(1000);
 
   if (Serial.available()) {
-    String receivedData = Serial.readStringUntil('\n'); // Recebe os dados enviados pelo Mestre
-    Serial.print("Recebido: ");
-    Serial.println(receivedData); // Printa os dados recebidos
+    char receivedChar = Serial.read(); // Lê um caracter
+    if (receivedChar == '>') { // Verifica se o caracter é o de inicio de mensagem
+      String receivedData = "";
+      while (Serial.available()) {
+        char dataChar = Serial.read();
+        if (dataChar == '<') { // Verifica caracter a caracter se é o de fim de mensagem
+          Serial.print("Recebido: ");
+          Serial.println(receivedData);
+          break;
+        }
+        receivedData += dataChar;
+      }
+    }
   }
 }
