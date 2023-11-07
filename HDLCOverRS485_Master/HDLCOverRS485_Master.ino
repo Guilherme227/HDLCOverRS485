@@ -10,30 +10,45 @@ o Arduino só possui um par RX/TX, decidimos utilizar a biblioteca <ATtinySerial
 
 Código do Arduino UNO (Mestre)
 */
-//#include <ATtinySerialOut.h>
 
-//SoftwareSerial esp32Serial1(2,3); // RX, TX via software para o primeiro ESP32
-//SoftwareSerial esp32Serial2(4,5); // RX, TX via software para o segundo ESP32
+const unsigned long TIMEOUT_DURATION = 1000;
+const byte ACK_BYTE = 0x06;
+const byte NAK_BYTE = 0x15;
 
 void setup() {
-  Serial.begin(115200); // Começa a comuncação serial com o Mestre
-
-  //esp32Serial1.begin(115200); // Começa a comunicação serial com o Escravo 1
+  Serial.begin(115200); // Começa a comuncação serial
 }
 
 void loop() {
-  //esp32Serial1.print("Olá, ESP32-1!"); // Envio de dados do Mestre ao Escravo 1
-  char dataToSend[] = "Olá, ESP32!";
-  Serial.print(">"); // Caracter definindo o início da mensagem
-  Serial.print(dataToSend);
-  Serial.print("<"); // Caracter definindo o final da mensagem
+  const char* messageToSend = "Hello, ESP32!";
+  sendHDLCMessage(messageToSend);
+}
 
-  /*while (esp32Serial1.available()) {
-    char receivedChar = esp32Serial1.read(); // Recebe os dados do Escravo 1
-    Serial.print(receivedChar); // Printa os dados do Escravo 1
-  }*/
-  while (Serial.available()) {
-    char receivedChar = Serial.read();
-    Serial.print(receivedChar);
+void sendHDLCMessage(const char* message){
+  Serial.write(0x7E); // Flag de inicio de mensagem
+  Serial.write(message);
+  Serial.flush();
+  Serial.write(0x7E); // Flag de final de mensagem
+
+  if (waitForACK()) {
+    Serial.println("Mensagem enviada com sucesso!");
+  } else {
+    Serial.println("Falha ao enviar a mensagem!");
   }
+}
+
+bool waitForACK() {
+  unsigned long startTime = millis();
+
+  while (millis() - startTime < TIMEOUT_DURATION) {
+    if (serial.available() > 0) {
+      char receivedChar = Serial.read();
+      if (receivedChar == ACK_BYTE) {
+        return true;
+      } else if (receivedChar == NAK_BYTE) {
+        return false;
+      }
+    }
+  }
+  return false;
 }
