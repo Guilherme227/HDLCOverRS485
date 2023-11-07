@@ -7,27 +7,51 @@ Uso do protocolo de enlace HDLC sobre o protocolo físico RS485.
 
 Código do ESP32-1 (Escravo)
 */
+
+const byte ACK_BYTE = 0x06;
+const byte NAK_BYTE = 0x15;
+
 void setup() {
   Serial.begin(115200);
 }
 
 void loop() {
-  //Serial.println("Hello, World!");
-  //delay(1000);
+  receiveHDLCMessage();
+}
 
-  if (Serial.available()) {
-    char receivedChar = Serial.read(); // Lê um caracter
-    if (receivedChar == '>') { // Verifica se o caracter é o de inicio de mensagem
-      String receivedData = "";
-      while (Serial.available()) {
-        char dataChar = Serial.read();
-        if (dataChar == '<') { // Verifica caracter a caracter se é o de fim de mensagem
-          Serial.print("Recebido: ");
-          Serial.println(receivedData);
-          break;
-        }
-        receivedData += dataChar;
+void receiveHDLCMessage() {
+
+  String receivedData = "";
+  bool messageReceivedSuccessfully = false;
+
+  while (Serial.available() > 0) {
+    char receivedChar = Serial.read();
+    receivedData += receivedChar;
+
+    if (receivedChar == 0x7E) {
+      if (!receivedData.isEmpty()) {
+        messageReceivedSuccessfully = processReceivedData(receivedData);
       }
+      receivedData = "";
     }
   }
+
+  if (messageReceivedSuccessfully) {
+    sendACK();
+  } else {
+    sendNAK();
+  }
+}
+
+bool processReceivedData(const String& data) {
+  Serial.println("Recebido: " + data);
+  return true;
+}
+
+void sendACK () {
+  Serial.write(ACK_BYTE);
+}
+
+void sendNAK() {
+  Serial.write(NAK_BYTE);
 }
