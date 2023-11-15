@@ -1,35 +1,36 @@
 /*
 ----------------Trabalho 1 - Comunicação de Dados----------------
 
-Alunos: Guilherme Lopes de Oliveira e Lucas
+Alunos: Guilherme Lopes de Oliveira e Lucas Coelho Garbossa
 
 Uso do protocolo de enlace HDLC sobre o protocolo físico RS485.
 
 Código do ESP32 (Escravo)
 */
 
+#define GREEN_LED_PIN 25
+#define YELLOW_LED_PIN 26
+#define RED_LED_PIN 27
+
 const byte ACK_BYTE = 0x06;
 const byte NAK_BYTE = 0x15;
-const uint16_t SLAVE_ID = 2;
+const byte FLAG = 0x7E;
+const uint16_t SLAVE_ID = 1;
+const uint16_t BROADCAST = 3;
 bool ackSent = false;
 bool nakSent = false;
-const uint FLAG = 0x7E;
 
-#define LED 2
 
 void setup() {
   Serial.begin(9600);
-  pinMode(LED, OUTPUT);
+  pinMode(GREEN_LED_PIN, OUTPUT);
+  pinMode(YELLOW_LED_PIN, OUTPUT);
+  pinMode(RED_LED_PIN, OUTPUT);
 }
 
-void loop() {
-  
-  delay(500);
-  digitalWrite(LED,HIGH);
-  delay(500);
-  digitalWrite(LED,LOW);
-
+void loop() { 
   receiveHDLCMessage();
+  delay(1000);
 }
 
 void receiveHDLCMessage() {
@@ -40,8 +41,10 @@ void receiveHDLCMessage() {
   const int HEADER_LENGTH = 4; // Tamanho do cabeçalho (Endereço + Controle)
   bool inMessage = false; // Indicador se está dentro da mensagem
   uint16_t receivedFCS; // FCS recebido
+  ackSent = false;
+  nakSent = false;
 
-  while (Serial.available()) {
+  while (Serial.available() > 0) {
     char receivedChar = Serial.read(); // Lê caracter a caracter do pacote recebido
     //Serial.print("Caracter lido: " + receivedChar);
 
@@ -57,21 +60,22 @@ void receiveHDLCMessage() {
         if (receivedData.length() >= HEADER_LENGTH) { // Verifica se o tamanho é o suficiente para formar o cabeçalho (Endereço + Controle)
           slaveID = (receivedData[0] << 8) | receivedData[1]; // Separa o endereço do cabeçalho
 
-          if (slaveID == SLAVE_ID) { // Verifica se é o mesmo ID do Escravo
-          control = (receivedData[2] << 8) | receivedData[3];
+          if (slaveID == SLAVE_ID || slaveID == BROADCAST) { // Verifica se é o mesmo ID do Escravo ou se é um broadcast
+            control = (receivedData[2] << 8) | receivedData[3];
 
-          messageData = receivedData.substring(HEADER_LENGTH, receivedData.length() - 2); // Separa a mensagem recebida
+            messageData = receivedData.substring(HEADER_LENGTH, receivedData.length() - 2); // Separa a mensagem recebida
           
-          receivedFCS = (receivedData[receivedData.length() - 2] << 8) | receivedData[receivedData.length() - 1]; // Separa p FCS recebido
+            receivedFCS = (receivedData[receivedData.length() - 2] << 8) | receivedData[receivedData.length() - 1]; // Separa p FCS recebido
 
-          if (validateFCS(slaveID, control, messageData, receivedFCS)) { // Calcula o FCS com os dados recebidos e compara
-            processReceivedData(slaveID, control, messageData); // Processa a mensagem
+            if (validateFCS(slaveID, control, messageData, receivedFCS)) { // Calcula o FCS com os dados recebidos e compara
+              processReceivedData(slaveID, control, messageData); // Processa a mensagem
 
-            if(!ackSent) { // Envia a confirmação caso não tenha sido enviada anteriormente
-              sendACK();
-              delay(500);
+              if(!ackSent && !nakSent) { // Envia a confirmação caso não tenha sido enviada anteriormente
+                sendACK();
+              }
+            } else if(!nakSent && ackSent) {
+              sendNAK();
             }
-          }
           }
         }
       }
@@ -88,14 +92,67 @@ bool validateFCS(uint16_t address, uint16_t control, const String& data, uint16_
 
   for (int i = 0; i < data.length(); i++) {
     calculatedFCS ^= data[i];
+    //calculatedFCS += 1; // Força NAK
   }
 
-  Serial.print("FCS Calculado: ");
+  Serial.print("\nFCS Calculado: ");
   Serial.println(calculatedFCS);
   Serial.print("FCS Recebido: ");
   Serial.println(receivedFCS);
 
   return calculatedFCS == receivedFCS;
+}
+
+void executeControlCode(uint16_t control) {
+  switch (control) {
+    case 1:
+      for (int i = 1; i <= 3; i++){
+        digitalWrite(GREEN_LED_PIN, HIGH);
+        delay(500);
+        digitalWrite(GREEN_LED_PIN, LOW);
+        delay(500);
+      }
+      break;
+    
+    case 2:
+      for (int i = 1; i <= 3; i++){
+        digitalWrite(YELLOW_LED_PIN, HIGH);
+        delay(500);
+        digitalWrite(YELLOW_LED_PIN, LOW);
+        delay(500);
+      }
+      break;
+
+    case 3:
+      for (int i = 1; i <= 3; i++){
+        digitalWrite(RED_LED_PIN, HIGH);
+        delay(500);
+        digitalWrite(RED_LED_PIN, LOW);
+        delay(500);
+      }
+      break;
+    
+    case 4:      
+      digitalWrite(GREEN_LED_PIN, HIGH);
+      delay(500);
+      digitalWrite(GREEN_LED_PIN, LOW);
+
+      digitalWrite(YELLOW_LED_PIN, HIGH);
+      delay(500);
+      digitalWrite(YELLOW_LED_PIN, LOW);
+
+      digitalWrite(RED_LED_PIN, HIGH);
+      delay(500);
+      digitalWrite(RED_LED_PIN, LOW);
+      break;
+
+    default:
+      Serial.println("Código de controle inválido. Enviando NAK.");
+      if(!nakSent && !ackSent) {
+        sendNAK();
+      }
+      break;
+  }
 }
 
 void processReceivedData(uint16_t slaveID, uint16_t control, const String& data) {
@@ -105,12 +162,20 @@ void processReceivedData(uint16_t slaveID, uint16_t control, const String& data)
   Serial.println(control);
   Serial.print("Dados Recebidos: ");
   Serial.println(data);
+
+  executeControlCode(control);
 }
 
 void sendACK () {
+  Serial.println("Enviando ACK");
   Serial.print(ACK_BYTE);
+  ackSent = true;
+  delay(500);
 }
 
 void sendNAK() {
+  Serial.println("Enviando NAK");
   Serial.print(NAK_BYTE);
+  nakSent = true;
+  delay(500);
 }
