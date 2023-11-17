@@ -8,12 +8,12 @@ Uso do protocolo de enlace HDLC sobre o protocolo físico RS485.
 Código do ESP32 (Escravo)
 */
 
-#define GREEN_LED_PIN 25
-#define YELLOW_LED_PIN 26
+#define GREEN_LED_PIN 26
+#define YELLOW_LED_PIN 25
 #define RED_LED_PIN 27
 
-const byte ACK_BYTE = 0x06;
-const byte NAK_BYTE = 0x15;
+const char ACK_BYTE = 6;
+const char NAK_BYTE = 7;
 const byte FLAG = 0x7E;
 const uint16_t SLAVE_ID = 1;
 const uint16_t BROADCAST = 3;
@@ -73,7 +73,7 @@ void receiveHDLCMessage() {
               if(!ackSent && !nakSent) { // Envia a confirmação caso não tenha sido enviada anteriormente
                 sendACK();
               }
-            } else if(!nakSent && ackSent) {
+            } else if(!nakSent && !ackSent) {
               sendNAK();
             }
           }
